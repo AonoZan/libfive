@@ -30,7 +30,7 @@ Voxels::Voxels(const Eigen::Vector3f& _lower, const Eigen::Vector3f& _upper,
     auto extra = (res.array() > 0)
         .select(size.array().cast<float>() / res.array() -
                      (_upper - _lower).array(),
-                Eigen::Array3i::Zero());
+                Eigen::Array3f::Zero());
     lower = _lower.array() - extra/2;
     upper = _upper.array() + extra/2;
 

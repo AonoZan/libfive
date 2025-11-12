@@ -44,7 +44,7 @@ You can obtain one at http://mozilla.org/MPL/2.0/.
 // Eigen 4 makes EIGEN_MAKE_ALIGNED_OPERATOR_NEW a no-op, but... this doesn't
 // seem to work (see libfive issues #462 and #464).  This macro replaces it
 // for new Eigen versions, while staying backwards-compatible for Eigen 3.x
-#if EIGEN_MAJOR_VERSION == 4
+#if EIGEN_MAJOR_VERSION >= 4
 #ifdef _WIN32
 #define ALIGNED_OPERATOR_NEW_AND_DELETE(T) \
     void *operator new[](std::size_t size) {                        \
