@@ -194,3 +194,35 @@ def deserialize_tree(data):
     if ptr is None or ptr == 0:
         return None
     return ptr
+
+################################################################################
+# Custom utilities handling
+custom_c_utils = None
+try:
+    custom_c_utils = link_lib('src', 'libcustom_c_utils')
+    
+    # Declare the calculate_colors C-signature
+    if custom_c_utils is not None:
+        custom_c_utils.calculate_colors.argtypes = [
+            ctypes.POINTER(ctypes.c_float),     # verts
+            ctypes.c_int,                       # num_verts
+            ctypes.POINTER(ctypes.c_float),     # matrices
+            ctypes.POINTER(ctypes.c_uint8),     # sdf_data
+            ctypes.POINTER(ctypes.c_int),       # sdf_data_sizes
+            ctypes.POINTER(ctypes.c_float),     # sdf_colors
+            
+            # --- Dynamic Properties (Direction C) ---
+            ctypes.POINTER(ctypes.c_float),     # blend_factors
+            ctypes.POINTER(ctypes.c_float),     # clearance_offsets
+            ctypes.POINTER(ctypes.c_int),       # use_shell
+            ctypes.POINTER(ctypes.c_float),     # shell_offsets
+            
+            ctypes.c_int,                       # num_sdfs
+            ctypes.POINTER(ctypes.c_float)      # colors (output)
+        ]
+        custom_c_utils.calculate_colors.restype = None
+except OSError as e:
+    print(f"Custom C-utility library 'libcustom_c_utils' not loaded: {e}")
+    c_utils = None
+
+################################################################################

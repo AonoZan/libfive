@@ -191,6 +191,7 @@ set(LIBFIVE_BUILD_FROM_ROOT true)
 
 # Always build the kernel and test suite
 add_subdirectory(libfive)
+add_subdirectory(custom_c_utils)
 
 if(BUILD_STUDIO_APP AND (STUDIO_WITH_GUILE OR STUDIO_WITH_PYTHON) AND QtCore_FOUND)
     add_subdirectory(studio)
