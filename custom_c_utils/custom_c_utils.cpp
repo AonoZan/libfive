@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <algorithm>
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846f
+#endif
+
 // Define stable C-API opaque handles and structures to match libfive
 typedef void* libfive_tree;
 
@@ -12,6 +16,52 @@ struct libfive_vec3_t {
     float y;
     float z;
 };
+
+// Fold a linear coordinate safely back to the base primitive coordinate system
+float fold_linear(float val, int count, float spacing, float child_pos) {
+    if (count > 1 && std::abs(spacing) > 1e-5f) {
+        // Shift using the child's original coordinate to align with the array span
+        float val_shifted = val + child_pos;
+        
+        // Find closest instance index
+        int idx = std::round(val_shifted / spacing);
+        if (idx < 0) idx = 0;
+        if (idx >= count) idx = count - 1;
+        
+        // Fold back to the original child shape's position (located at the end of the array, index count - 1)
+        return val - (idx - (count - 1)) * spacing;
+    }
+    return val;
+}
+
+// Fold a radial coordinate back to the child shape's original angle
+void fold_radial(float& lx, float& ly, int count, float cx, float cy, float child_x, float child_y) {
+    if (count > 1) {
+        float dx = lx - cx;
+        float dy = ly - cy;
+        float r = std::sqrt(dx*dx + dy*dy);
+        if (r > 1e-5f) {
+            float theta = std::atan2(dy, dx);
+            
+            // Calculate child's original angle relative to the pivot
+            float theta_child = std::atan2(child_y - cy, child_x - cx);
+            
+            float theta_rel = theta - theta_child;
+            
+            // Wrap relative angle to [-pi, pi] to find the closest segment safely
+            while (theta_rel < -M_PI) theta_rel += 2.0f * M_PI;
+            while (theta_rel > M_PI)  theta_rel -= 2.0f * M_PI;
+            
+            float sector = (2.0f * M_PI) / count;
+            int idx = std::round(theta_rel / sector);
+            
+            float theta_folded = theta_rel - (idx * sector) + theta_child;
+            
+            lx = r * std::cos(theta_folded) + cx;
+            ly = r * std::sin(theta_folded) + cy;
+        }
+    }
+}
 
 extern "C" {
     // Forward-declare libfive's ABI-stable C-API functions
@@ -22,12 +72,30 @@ extern "C" {
     void calculate_colors(
         float* verts, int num_verts, 
         float* matrices, 
+        float* child_matrices, 
         uint8_t* sdf_data, int* sdf_data_sizes, 
         float* sdf_colors, 
         float* blend_factors,
         float* clearance_offsets,
         int* use_shell,
         float* shell_offsets,
+
+        int* array_modes,
+        int* array_counts_x,
+        int* array_counts_y,
+        int* array_counts_z,
+        float* array_spacings_x,
+        float* array_spacings_y,
+        float* array_spacings_z,
+        float* array_shifts_x,
+        float* array_shifts_y,
+        float* array_shifts_z,
+        int* radial_counts,
+        float* radial_centers_x,
+        float* radial_centers_y,
+        float* radial_children_x,
+        float* radial_children_y,
+
         int num_sdfs, 
         float* colors
     ) {
@@ -57,11 +125,27 @@ extern "C" {
             for (int j = 0; j < num_sdfs; ++j) {
                 if (!trees[j]) continue;
 
-                // Simple, fast manual 4x4 matrix multiplication matching column-major order
-                float* m = matrices + j * 16;
-                float lx = m[0]*vx + m[4]*vy + m[8]*vz + m[12];
-                float ly = m[1]*vx + m[5]*vy + m[9]*vz + m[13];
-                float lz = m[2]*vx + m[6]*vy + m[10]*vz + m[14];
+                // Map vertex from World Space to Group local space
+                float* m_grp = matrices + j * 16;
+                float gx = m_grp[0]*vx + m_grp[4]*vy + m_grp[8]*vz + m_grp[12];
+                float gy = m_grp[1]*vx + m_grp[5]*vy + m_grp[9]*vz + m_grp[13];
+                float gz = m_grp[2]*vx + m_grp[6]*vy + m_grp[10]*vz + m_grp[14];
+
+                // Fold coordinate space inside the Group's space if array modifiers are active
+                int mode = array_modes[j];
+                if (mode == 1) { // LINEAR
+                    gx = fold_linear(gx, array_counts_x[j], array_spacings_x[j], array_shifts_x[j]);
+                    gy = fold_linear(gy, array_counts_y[j], array_spacings_y[j], array_shifts_y[j]);
+                    gz = fold_linear(gz, array_counts_z[j], array_spacings_z[j], array_shifts_z[j]);
+                } else if (mode == 2) { // RADIAL
+                    fold_radial(gx, gy, radial_counts[j], radial_centers_x[j], radial_centers_y[j], radial_children_x[j], radial_children_y[j]);
+                }
+
+                // Map vertex from Group Space to Child local space
+                float* m_ch = child_matrices + j * 16;
+                float lx = m_ch[0]*gx + m_ch[4]*gy + m_ch[8]*gz + m_ch[12];
+                float ly = m_ch[1]*gx + m_ch[5]*gy + m_ch[9]*gz + m_ch[13];
+                float lz = m_ch[2]*gx + m_ch[6]*gy + m_ch[10]*gz + m_ch[14];
 
                 libfive_vec3_t p = { lx, ly, lz };
                 float dist = libfive_tree_eval_f(trees[j], p);

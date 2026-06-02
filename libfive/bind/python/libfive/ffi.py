@@ -206,7 +206,8 @@ try:
         custom_c_utils.calculate_colors.argtypes = [
             ctypes.POINTER(ctypes.c_float),     # verts
             ctypes.c_int,                       # num_verts
-            ctypes.POINTER(ctypes.c_float),     # matrices
+            ctypes.POINTER(ctypes.c_float),     # matrices (group inverse)
+            ctypes.POINTER(ctypes.c_float),     # child_matrices (local transition)
             ctypes.POINTER(ctypes.c_uint8),     # sdf_data
             ctypes.POINTER(ctypes.c_int),       # sdf_data_sizes
             ctypes.POINTER(ctypes.c_float),     # sdf_colors
@@ -216,6 +217,23 @@ try:
             ctypes.POINTER(ctypes.c_float),     # clearance_offsets
             ctypes.POINTER(ctypes.c_int),       # use_shell
             ctypes.POINTER(ctypes.c_float),     # shell_offsets
+            
+            # --- Array Parameters ---
+            ctypes.POINTER(ctypes.c_int),       # array_modes
+            ctypes.POINTER(ctypes.c_int),       # array_counts_x
+            ctypes.POINTER(ctypes.c_int),       # array_counts_y
+            ctypes.POINTER(ctypes.c_int),       # array_counts_z
+            ctypes.POINTER(ctypes.c_float),     # array_spacings_x
+            ctypes.POINTER(ctypes.c_float),     # array_spacings_y
+            ctypes.POINTER(ctypes.c_float),     # array_spacings_z
+            ctypes.POINTER(ctypes.c_float),     # array_shifts_x
+            ctypes.POINTER(ctypes.c_float),     # array_shifts_y
+            ctypes.POINTER(ctypes.c_float),     # array_shifts_z
+            ctypes.POINTER(ctypes.c_int),       # radial_counts
+            ctypes.POINTER(ctypes.c_float),     # radial_centers_x
+            ctypes.POINTER(ctypes.c_float),     # radial_centers_y
+            ctypes.POINTER(ctypes.c_float),     # radial_children_x (New)
+            ctypes.POINTER(ctypes.c_float),     # radial_children_y (New)
             
             ctypes.c_int,                       # num_sdfs
             ctypes.POINTER(ctypes.c_float)      # colors (output)
