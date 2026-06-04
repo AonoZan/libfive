@@ -11,9 +11,24 @@ import ctypes
 import numbers
 import tempfile
 import subprocess
+import platform
+import sys
 
 from libfive.ffi import (lib, libfive_region_t, libfive_interval_t,
                          libfive_vec3_t, libfive_tree)
+
+# FIX: Windows x64 MSVC ABI requires structs > 8 bytes to be passed by reference.
+# We define these argtypes globally once to ensure thread-safety and performance.
+_IS_WINDOWS_64 = (platform.system() == "Windows" and sys.maxsize > 2**32)
+
+if _IS_WINDOWS_64:
+    lib.libfive_tree_save_meshes.argtypes = [
+        ctypes.POINTER(libfive_tree), ctypes.c_void_p, 
+        ctypes.c_float, ctypes.c_float, ctypes.c_char_p
+    ]
+    lib.libfive_tree_render_mesh.argtypes = [
+        ctypes.c_void_p, ctypes.c_void_p, ctypes.c_float
+    ]
 
 def _wrapped(f):
     ''' Decorator function which calls Shape.wrap on every argument
@@ -242,8 +257,11 @@ class Shape:
                                     in zip(xyz_min, xyz_max)])
         ptr_array = [self.ptr]
         trees = (libfive_tree * len(ptr_array))(*ptr_array)
-        lib.libfive_tree_save_meshes(trees, region, resolution, quality,
-                                   filename.encode('ascii'))
+        
+        if _IS_WINDOWS_64:
+            lib.libfive_tree_save_meshes(trees, ctypes.byref(region), resolution, quality, filename.encode('ascii'))
+        else:
+            lib.libfive_tree_save_meshes(trees, region, resolution, quality, filename.encode('ascii'))
 
     def get_mesh(self, xyz_min=(-10,-10,-10), xyz_max=(10,10,10),
                  resolution=10):
@@ -258,7 +276,12 @@ class Shape:
         '''
         region = libfive_region_t(*[libfive_interval_t(a, b) for a, b
                                     in zip(xyz_min, xyz_max)])
-        mesh_p = lib.libfive_tree_render_mesh(self.ptr, region, resolution)
+        
+        if _IS_WINDOWS_64:
+            mesh_p = lib.libfive_tree_render_mesh(self.ptr, ctypes.byref(region), float(resolution))
+        else:
+            mesh_p = lib.libfive_tree_render_mesh(self.ptr, region, resolution)
+            
         mesh = mesh_p[0]
         tris = []
         for i in range(mesh.tri_count):
